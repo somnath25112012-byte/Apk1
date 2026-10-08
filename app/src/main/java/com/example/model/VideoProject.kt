@@ -7,14 +7,28 @@ enum class AspectRatioType(val titleBn: String, val ratio: Float, val label: Str
 }
 
 enum class VoiceStyle(val titleBn: String, val titleEn: String, val isFemale: Boolean) {
-    BENGALI_FEMALE_NATURAL("বাঙালি নারী (স্বাভাবিক)", "Bengali Female Natural", true),
+    BENGALI_FEMALE_NATURAL("বাঙালি নারী (স্বাভাবিক ও আন্তরিক)", "Bengali Female Natural", true),
     BENGALI_FEMALE_PROFESSIONAL("বাঙালি নারী (প্রফেশনাল)", "Bengali Female Professional", true),
-    BENGALI_FEMALE_EMOTIONAL("বাঙালি নারী (আবেগঘন)", "Bengali Female Emotional", true),
-    BENGALI_FEMALE_PROMOTIONAL("বাঙালি নারী (বিজ্ঞাপনী)", "Bengali Female Promotional", true),
+    BENGALI_FEMALE_EMOTIONAL("বাঙালি নারী (আবেগঘন ও ঘরোয়া)", "Bengali Female Emotional", true),
+    BENGALI_FEMALE_PROMOTIONAL("বাঙালি নারী (বিজ্ঞাপনী ও আকর্ষণীয়)", "Bengali Female Promotional", true),
     BENGALI_MALE_NATURAL("বাঙালি পুরুষ (স্বাভাবিক)", "Bengali Male Natural", false),
     BENGALI_MALE_PROFESSIONAL("বাঙালি পুরুষ (প্রফেশনাল)", "Bengali Male Professional", false),
     BENGALI_MALE_EMOTIONAL("বাঙালি পুরুষ (আবেগঘন)", "Bengali Male Emotional", false),
     BENGALI_MALE_PROMOTIONAL("বাঙালি পুরুষ (বিজ্ঞাপনী)", "Bengali Male Promotional", false)
+}
+
+enum class VoiceEmotionPreset(val titleBn: String, val descriptionBn: String) {
+    NATURAL_WARM("আন্তরিক ও স্বাভাবিক", "ঘরোয়া ও আন্তরিক মিষ্টি বাঙালি কণ্ঠ"),
+    PROMOTIONAL("বিজ্ঞাপনী ও রুচিশীল", "আকর্ষক, আত্মবিশ্বাসী ও উদ্দীপক প্রচারধর্মী কণ্ঠ"),
+    JOYFUL("উৎসব ও আনন্দমুখর", "উৎসবের আমেজ ও খুশিভরা প্রাণবন্ত কণ্ঠ"),
+    EMOTIONAL("আবেগঘন ও মমতাময়ী", "মায়ের হাতের রান্নার আবেগ ও কোমল অনুভূতি"),
+    STORYTELLING("গল্প বলার স্টাইল", "ধীরস্থির ও বর্ণনামূলক মিষ্টি কণ্ঠ")
+}
+
+enum class VisualSourceMode(val titleBn: String, val descriptionBn: String) {
+    AI_GENERATED("AI ভিজ্যুয়াল", "টেক্সট প্রম্পট থেকে সরাসরি ছবি ও দৃশ্য তৈরি"),
+    USER_MEDIA("নিজের ছবি ও ভিডিও", "গ্যালারি থেকে নিজস্ব ছবি ও ভিডিও ক্লিপ ব্যবহার"),
+    MIXED("মিশ্র মিডিয়া", "নিজের ছবি/ভিডিও-র সাথে AI ভিজ্যুয়ালের সমন্বয়")
 }
 
 enum class MusicTrack(val titleBn: String, val moodBn: String) {
@@ -44,7 +58,10 @@ data class ScenePlan(
     val mediaUri: String? = null,
     val drawableResId: Int? = null,
     val isVideoMedia: Boolean = false,
-    val transition: VideoTransition = VideoTransition.FADE
+    val transition: VideoTransition = VideoTransition.FADE,
+    val voiceAudioFilePath: String? = null,
+    val visualPromptEn: String? = null,
+    val captionEnabled: Boolean = true
 )
 
 data class VideoProject(
@@ -54,14 +71,21 @@ data class VideoProject(
     val businessBn: String = "অন্বেষার রসনা বিলাস",
     val purposeBn: String = "ব্যবসা ও রেস্তোরাঁ প্রচার",
     val styleBn: String = "Cinematic Bengali Heritage",
-    val targetDurationSeconds: Int = 30, // 30, 45, 60, 90, or custom
+    val targetDurationSeconds: Int = 30, // 30, 45, 60, 90, or custom (minimum 30)
     val aspectRatio: AspectRatioType = AspectRatioType.PORTRAIT_9_16,
     val voiceStyle: VoiceStyle = VoiceStyle.BENGALI_FEMALE_NATURAL,
+    val voicePreset: VoiceEmotionPreset = VoiceEmotionPreset.NATURAL_WARM,
+    val voiceSpeed: Float = 1.0f,
+    val voicePitch: Float = 1.0f,
     val musicTrack: MusicTrack = MusicTrack.BENGALI_FLUTE,
+    val isMusicEnabled: Boolean = true,
+    val isCaptionsEnabled: Boolean = true,
+    val captionFontSizeSp: Int = 22,
+    val visualSourceMode: VisualSourceMode = VisualSourceMode.AI_GENERATED,
     val scenes: List<ScenePlan> = emptyList(),
     val isAiGeneratedVisuals: Boolean = true,
     val fullScriptBn: String = "",
-    val musicVolume: Float = 0.35f,
+    val musicVolume: Float = 0.25f,
     val voiceVolume: Float = 1.0f,
     val isMuted: Boolean = false
 ) {

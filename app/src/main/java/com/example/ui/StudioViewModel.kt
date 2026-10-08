@@ -16,6 +16,8 @@ import com.example.model.MusicTrack
 import com.example.model.ScenePlan
 import com.example.model.VideoProject
 import com.example.model.VideoTransition
+import com.example.model.VisualSourceMode
+import com.example.model.VoiceEmotionPreset
 import com.example.model.VoiceStyle
 import com.example.model.WatermarkPosition
 import com.example.model.WatermarkSize
@@ -89,10 +91,20 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
     val aiStyle = MutableStateFlow("Cinematic Heritage Bengali")
     val aiDurationSeconds = MutableStateFlow(30)
     val aiVoiceStyle = MutableStateFlow(VoiceStyle.BENGALI_FEMALE_NATURAL)
+    val aiVoicePreset = MutableStateFlow(VoiceEmotionPreset.NATURAL_WARM)
+    val aiVoiceSpeed = MutableStateFlow(1.0f)
+    val aiVoicePitch = MutableStateFlow(1.0f)
+    val aiVisualSourceMode = MutableStateFlow(VisualSourceMode.AI_GENERATED)
     val aiMusicTrack = MutableStateFlow(MusicTrack.BENGALI_FLUTE)
+    val aiIsMusicEnabled = MutableStateFlow(true)
+    val aiIsCaptionsEnabled = MutableStateFlow(true)
+    val aiCaptionFontSize = MutableStateFlow(22)
     val aiAspectRatio = MutableStateFlow(AspectRatioType.PORTRAIT_9_16)
     val aiInstructions = MutableStateFlow("বাঙালি খাবারের সুস্বাদু ঘ্রাণ এবং বিশেষ অফারের কথা উল্লেখ করুন।")
     val isGeneratingScript = MutableStateFlow(false)
+    val isWorkflowRunning = MutableStateFlow(false)
+    val workflowStatusMessage = MutableStateFlow("")
+    val voicePreviewStatus = MutableStateFlow<String?>(null)
 
     // User Media State
     val userMediaTargetDuration = MutableStateFlow(30)
@@ -192,16 +204,178 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
                     style = aiStyle.value,
                     durationSeconds = aiDurationSeconds.value,
                     voiceStyle = aiVoiceStyle.value,
-                    musicTrack = aiMusicTrack.value,
+                    voicePreset = aiVoicePreset.value,
+                    musicTrack = if (aiIsMusicEnabled.value) aiMusicTrack.value else MusicTrack.NONE,
                     aspectRatio = aiAspectRatio.value,
                     extraInstructions = aiInstructions.value,
                     brandProfile = brandProfile.value
                 )
-                _currentProject.value = project
+
+                val updatedScenes = mutableListOf<ScenePlan>()
+                val userItems = userMediaList.value
+
+                for (idx in project.scenes.indices) {
+                    val scene = project.scenes[idx]
+                    when (aiVisualSourceMode.value) {
+                        VisualSourceMode.USER_MEDIA -> {
+                            val userItem = userItems.getOrNull(idx % userItems.size)
+                            if (userItem != null) {
+                                updatedScenes.add(scene.copy(
+                                    mediaUri = if (userItem.uri != Uri.EMPTY) userItem.uri.toString() else null,
+                                    drawableResId = userItem.drawableResId ?: scene.drawableResId,
+                                    isVideoMedia = userItem.isVideo
+                                ))
+                            } else {
+                                updatedScenes.add(scene)
+                            }
+                        }
+                        VisualSourceMode.MIXED -> {
+                            if (idx < userItems.size && userItems[idx].uri != Uri.EMPTY) {
+                                val userItem = userItems[idx]
+                                updatedScenes.add(scene.copy(
+                                    mediaUri = userItem.uri.toString(),
+                                    isVideoMedia = userItem.isVideo
+                                ))
+                            } else {
+                                updatedScenes.add(scene)
+                            }
+                        }
+                        VisualSourceMode.AI_GENERATED -> {
+                            updatedScenes.add(scene)
+                        }
+                    }
+                }
+
+                _currentProject.value = project.copy(
+                    scenes = updatedScenes,
+                    isCaptionsEnabled = aiIsCaptionsEnabled.value,
+                    captionFontSizeSp = aiCaptionFontSize.value,
+                    isMusicEnabled = aiIsMusicEnabled.value,
+                    voiceSpeed = aiVoiceSpeed.value,
+                    voicePitch = aiVoicePitch.value
+                )
                 playbackPositionSeconds.value = 0f
                 _currentScreen.value = StudioScreen.SCRIPT_VOICE
             } finally {
                 isGeneratingScript.value = false
+            }
+        }
+    }
+
+    fun previewSelectedVoice() {
+        val sampleText = "স্বাগত জানাই ${brandProfile.value.businessNameBn}-এ! খাঁটি বাঙালি রান্নার সেরা স্বাদ।"
+        voiceService.previewVoice(
+            text = sampleText,
+            voiceStyle = aiVoiceStyle.value,
+            preset = aiVoicePreset.value,
+            speed = aiVoiceSpeed.value,
+            pitch = aiVoicePitch.value,
+            onStatus = { voicePreviewStatus.value = it },
+            onComplete = { voicePreviewStatus.value = null }
+        )
+    }
+
+    fun generateCompleteAiVideoWorkflow() {
+        viewModelScope.launch {
+            isWorkflowRunning.value = true
+            workflowStatusMessage.value = "১/৪: স্ক্রিপ্ট ও দৃশ্য পরিকল্পনা তৈরি হচ্ছে..."
+            try {
+                // 1. Script Generation
+                val project = aiScriptService.generateScriptAndScenes(
+                    topic = aiTopic.value,
+                    business = aiBusiness.value,
+                    purpose = aiPurpose.value,
+                    style = aiStyle.value,
+                    durationSeconds = aiDurationSeconds.value,
+                    voiceStyle = aiVoiceStyle.value,
+                    voicePreset = aiVoicePreset.value,
+                    musicTrack = if (aiIsMusicEnabled.value) aiMusicTrack.value else MusicTrack.NONE,
+                    aspectRatio = aiAspectRatio.value,
+                    extraInstructions = aiInstructions.value,
+                    brandProfile = brandProfile.value
+                )
+
+                // 2. Visual Sourcing (AI, User Media, or Mixed)
+                workflowStatusMessage.value = "২/৪: দৃশ্য অনুযায়ী ভিজ্যুয়াল প্রস্তুত করা হচ্ছে..."
+                val updatedScenes = mutableListOf<ScenePlan>()
+                val userItems = userMediaList.value
+
+                for (idx in project.scenes.indices) {
+                    val scene = project.scenes[idx]
+                    when (aiVisualSourceMode.value) {
+                        VisualSourceMode.USER_MEDIA -> {
+                            val userItem = userItems.getOrNull(idx % userItems.size)
+                            if (userItem != null) {
+                                updatedScenes.add(scene.copy(
+                                    mediaUri = if (userItem.uri != Uri.EMPTY) userItem.uri.toString() else null,
+                                    drawableResId = userItem.drawableResId ?: scene.drawableResId,
+                                    isVideoMedia = userItem.isVideo
+                                ))
+                            } else {
+                                updatedScenes.add(scene)
+                            }
+                        }
+                        VisualSourceMode.MIXED -> {
+                            if (idx < userItems.size && userItems[idx].uri != Uri.EMPTY) {
+                                val userItem = userItems[idx]
+                                updatedScenes.add(scene.copy(
+                                    mediaUri = userItem.uri.toString(),
+                                    isVideoMedia = userItem.isVideo
+                                ))
+                            } else {
+                                val (drawable, file) = aiVideoService.obtainVisualForScene(
+                                    getApplication(), scene.visualPromptEn ?: scene.titleBn, idx
+                                )
+                                updatedScenes.add(scene.copy(
+                                    mediaUri = file?.absolutePath,
+                                    drawableResId = drawable ?: scene.drawableResId
+                                ))
+                            }
+                        }
+                        VisualSourceMode.AI_GENERATED -> {
+                            val (drawable, file) = aiVideoService.obtainVisualForScene(
+                                getApplication(), scene.visualPromptEn ?: scene.titleBn, idx
+                            )
+                            updatedScenes.add(scene.copy(
+                                mediaUri = file?.absolutePath,
+                                drawableResId = drawable ?: scene.drawableResId
+                            ))
+                        }
+                    }
+                }
+
+                // 3. Neural Voice Generation for Scenes
+                workflowStatusMessage.value = "৩/৪: বাংলা এআই ভয়েসওভার প্রস্তুত করা হচ্ছে..."
+                val voicedScenes = mutableListOf<ScenePlan>()
+                for (sc in updatedScenes) {
+                    val voiceResult = voiceService.synthesizeSceneVoice(
+                        text = sc.narrationScriptBn,
+                        voiceStyle = project.voiceStyle,
+                        preset = project.voicePreset,
+                        speed = project.voiceSpeed,
+                        pitch = project.voicePitch
+                    )
+                    val voiceFile = voiceResult.getOrNull()
+                    voicedScenes.add(sc.copy(voiceAudioFilePath = voiceFile?.absolutePath))
+                }
+
+                // 4. Save Final Project Model
+                val finalProject = project.copy(
+                    scenes = voicedScenes,
+                    isCaptionsEnabled = aiIsCaptionsEnabled.value,
+                    captionFontSizeSp = aiCaptionFontSize.value,
+                    isMusicEnabled = aiIsMusicEnabled.value
+                )
+                _currentProject.value = finalProject
+
+                // 5. Video Composition & Export to MP4
+                workflowStatusMessage.value = "৪/৪: রিয়েল MP4 ভিডিও এনকোডিং ও লোগো সংযুক্ত হচ্ছে..."
+                exportCurrentProject()
+            } catch (e: Exception) {
+                exportError.value = "ভিডিও তৈরি ব্যর্থ হয়েছে: ${e.message}"
+            } finally {
+                isWorkflowRunning.value = false
+                workflowStatusMessage.value = ""
             }
         }
     }
