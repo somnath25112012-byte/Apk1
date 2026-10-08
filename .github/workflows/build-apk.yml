@@ -1,0 +1,48 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Grant Execute Permission to Gradle Wrapper
+        run: chmod +x gradlew
+
+      - name: Run Clean Android Build
+        run: |
+          ./gradlew clean
+          ./gradlew assembleDebug --stacktrace --no-daemon
+
+      - name: Verify APK Generated
+        run: |
+          if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
+            echo "Success: app-debug.apk found!"
+            ls -lh app/build/outputs/apk/debug/app-debug.apk
+          else
+            echo "Error: app-debug.apk was not found!"
+            exit 1
+          fi
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Anweshar-Video-Studio-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30

@@ -1,0 +1,6 @@
+{
+  "name": "অন্বেষার ভিডিও স্টুডিও",
+  "description": "Anweshar Video Studio - Bengali AI Video Creation Studio for businesses, reels, shorts, and social media promotions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
